@@ -11,7 +11,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/sbtet/fee")
-@CrossOrigin(origins = "*")
 public class SbtetFeeController {
 
     private final SbtetFeeService feeService;
