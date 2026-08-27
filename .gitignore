@@ -14,3 +14,4 @@ application-local.yml
 
 .DS_Store
 Thumbs.db
+.env
