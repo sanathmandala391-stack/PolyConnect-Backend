@@ -144,7 +144,7 @@ polyconnect:
       secret: ${JWT_SECRET:PolyConnectLocalDevSecret_2026_SBTET_JWT_9fK3mP7xQ2vL8nR5tY6wA1zB4cD}
       expiration-ms: 86400000 # 24 hours
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,https://b64a-2409-40f0-6402-6754-cce6-9cdd-9d51-8c33.ngrok-free.app,https://0829-2409-40f0-6424-cfbb-a013-21f6-51ab-e26c.ngrok-free.app}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,https://b64a-2409-40f0-6402-6754-cce6-9cdd-9d51-8c33.ngrok-free.app,https://0829-2409-40f0-6424-cfbb-a013-21f6-51ab-e26c.ngrok-free.app,https://polyconnect-two.vercel.app}
   sbtet:
     base-url: https://www.sbtet.telangana.gov.in/api/api
     sync-cron: "0 0 6 * * ?" # Run daily at 2:00 AM
