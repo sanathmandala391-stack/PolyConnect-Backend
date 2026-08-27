@@ -116,8 +116,7 @@ public class SecurityConfig implements WebMvcConfigurer {
         configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
                 "https://*.ngrok-free.app",
-                "https://*.app"
-
+                "https://*.vercel.app"
         ));
 
         configuration.setAllowedMethods(List.of(
