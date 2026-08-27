@@ -588,7 +588,8 @@ private Map<String, Object> processMidResultsJson(JsonNode rootNode) {
         } catch (SbtetServiceException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new SbtetServiceException("SBTET exam month/year service is temporarily unavailable.");
+            ex.printStackTrace();
+            throw new SbtetServiceException("SBTET exam month/year service is temporarily unavailable: " + ex.getMessage());
         }
     }
 
