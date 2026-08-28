@@ -1,25 +1,20 @@
 package com.polyconnect.service;
 
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Direct Spring Boot replacement for the n8n "My workflow 4" attendance automation.
- * Runs daily at 6:00 AM. No n8n, no separate hosting needed for this job —
- * it runs inside whatever process already hosts the PolyConnect backend.
+ * Spring Boot attendance automation service.
+ * Fetches biometric attendance from SBTET API, stores daily snapshots in DB,
+ * and prepares email payloads for GitHub Actions to dispatch via Gmail.
  */
 @Service
 public class AttendanceAutomationService {
@@ -34,23 +29,64 @@ public class AttendanceAutomationService {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Autowired
-    private JavaMailSender mailSender;
-
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Value("${polyconnect.mail.from:sanathmandala391@gmail.com}")
-    private String fromEmail;
+    public static class AttendanceEmailPayload {
+        private String to;
+        private String studentName;
+        private String pin;
+        private String subject;
+        private String body;
+
+        public AttendanceEmailPayload() {}
+
+        public AttendanceEmailPayload(String to, String studentName, String pin, String subject, String body) {
+            this.to = to;
+            this.studentName = studentName;
+            this.pin = pin;
+            this.subject = subject;
+            this.body = body;
+        }
+
+        public String getTo() { return to; }
+        public void setTo(String to) { this.to = to; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getPin() { return pin; }
+        public void setPin(String pin) { this.pin = pin; }
+        public String getSubject() { return subject; }
+        public void setSubject(String subject) { this.subject = subject; }
+        public String getBody() { return body; }
+        public void setBody(String body) { this.body = body; }
+    }
+
+    public static class AttendanceAutomationResult {
+        private String status;
+        private int totalProcessed;
+        private int emailsCount;
+        private List<AttendanceEmailPayload> emails;
+
+        public AttendanceAutomationResult(String status, int totalProcessed, List<AttendanceEmailPayload> emails) {
+            this.status = status;
+            this.totalProcessed = totalProcessed;
+            this.emailsCount = emails != null ? emails.size() : 0;
+            this.emails = emails != null ? emails : new ArrayList<>();
+        }
+
+        public String getStatus() { return status; }
+        public int getTotalProcessed() { return totalProcessed; }
+        public int getEmailsCount() { return emailsCount; }
+        public List<AttendanceEmailPayload> getEmails() { return emails; }
+    }
 
     /**
-     * Equivalent of the n8n Schedule Trigger node: cron "0 6 * * *"
+     * Processes attendance from SBTET for all approved students, updates the database,
+     * and returns the prepared email list for GitHub Actions to send directly.
      */
-//    @Scheduled(cron = "0 0 6 * * *") // TEMP: testing at 12:28 PM — change back to "0 0 6 * * *" after
-    public void runDailyAttendanceCheck() {
-        System.out.println(">>> AttendanceAutomationService: scheduled job FIRED at " + java.time.LocalDateTime.now());
+    public AttendanceAutomationResult processAndPrepareEmails() {
+        System.out.println(">>> AttendanceAutomationService: job FIRED at " + java.time.LocalDateTime.now());
 
-        // Step 1 — equivalent of "Execute a SQL query3": get all approved student PINs
         List<String> pins = jdbcTemplate.queryForList(
                 "SELECT username FROM users WHERE role = 'STUDENT' AND status = 'APPROVED'",
                 String.class
@@ -58,41 +94,65 @@ public class AttendanceAutomationService {
 
         System.out.println(">>> Found " + pins.size() + " approved student PIN(s): " + pins);
 
+        List<AttendanceEmailPayload> emailList = new ArrayList<>();
+        int processedCount = 0;
+
         for (String pin : pins) {
             try {
                 System.out.println(">>> Processing PIN: " + pin);
-                processStudent(pin);
+                AttendanceEmailPayload emailPayload = processStudent(pin);
+                if (emailPayload != null) {
+                    emailList.add(emailPayload);
+                }
                 System.out.println(">>> Finished PIN: " + pin);
             } catch (Exception e) {
-                // Log and continue — one student's failure shouldn't stop the batch
-                e.printStackTrace();
                 System.err.println("Attendance check failed for PIN " + pin + ": " + e.getMessage());
             }
+            processedCount++;
         }
 
-        System.out.println(">>> AttendanceAutomationService: scheduled job COMPLETE");
+        System.out.println(String.format(
+                ">>> AttendanceAutomationService: completed. Total: %d, Email Payloads Prepared: %d",
+                processedCount, emailList.size()
+        ));
+
+        return new AttendanceAutomationResult("SUCCESS", processedCount, emailList);
     }
 
-    private void processStudent(String pin) throws Exception {
-        // Step 2 — equivalent of "HTTP Request": call SBTET attendance API
-        String rawJson = restTemplate.getForObject(SBTET_URL + pin, String.class);
+    private AttendanceEmailPayload processStudent(String pin) throws Exception {
+        // 1. Call SBTET attendance API
+        String rawJson;
+        try {
+            rawJson = restTemplate.getForObject(SBTET_URL + pin, String.class);
+        } catch (Exception httpErr) {
+            System.err.println("    [" + pin + "] Failed to contact SBTET API: " + httpErr.getMessage());
+            return null;
+        }
+
         System.out.println("    [" + pin + "] SBTET raw response: " + rawJson);
 
-        // SBTET double-encodes its response: the HTTP body is itself a JSON STRING
-        // containing the real JSON (or sometimes a plain error string like
-        // "Divide by zero error encountered."). Parse once to unwrap the outer
-        // string, then parse again to get the actual object — same as the n8n
-        // Code node's "typeof $json.data === 'string' ? JSON.parse(...) : $json".
-        JsonNode outer = objectMapper.readTree(rawJson);
+        if (rawJson == null || rawJson.isBlank() || rawJson.contains("Divide by zero error encountered")) {
+            System.out.println("    [" + pin + "] STOPPED: SBTET returned a non-JSON / error response");
+            return null;
+        }
+
+        // 2. Parse response safely
+        JsonNode outer;
+        try {
+            outer = objectMapper.readTree(rawJson);
+        } catch (Exception parseErr) {
+            System.out.println("    [" + pin + "] STOPPED: Failed to parse raw response as JSON");
+            return null;
+        }
+
         JsonNode root;
         if (outer.isTextual()) {
             String inner = outer.asText();
             try {
                 root = objectMapper.readTree(inner);
             } catch (Exception parseError) {
-                // Not JSON at all — e.g. "Divide by zero error encountered."
-                System.out.println("    [" + pin + "] STOPPED: SBTET returned a non-JSON error: " + inner);
-                return;
+                System.out.println("    [" + pin + "] STOPPED: SBTET returned non-JSON inner string: " + inner);
+                return null;
             }
         } else {
             root = outer;
@@ -104,11 +164,11 @@ public class AttendanceAutomationService {
 
         if (tableItem.isMissingNode() || tableItem.isEmpty()) {
             System.out.println("    [" + pin + "] STOPPED: no Table data returned from SBTET");
-            return; // no data returned for this student today
+            return null;
         }
 
-        // Step 3 — equivalent of "Code in JavaScript": extract fields
-        String name = tableItem.path("Name").asText(null);
+        // 3. Extract fields
+        String name = tableItem.path("Name").asText("Student");
         double totalPercentage = tableItem.path("TotalPercentage").asDouble(0);
         int examsPresentDays = tableItem.path("ExamsNDP").asInt(0);
         int examsWorkingDays = tableItem.path("ExamsWorkingDays").asInt(0);
@@ -117,98 +177,115 @@ public class AttendanceAutomationService {
 
         System.out.println("    [" + pin + "] Parsed: name=" + name + " totalPercentage=" + totalPercentage);
 
-        // Step 4 — equivalent of "Execute a SQL query": get previous snapshot
-        Double previousPercentage = jdbcTemplate.query(
-                "SELECT exam_eligibility_percentage FROM attendance_history " +
-                        "WHERE student_pin = ? ORDER BY snapshot_date DESC LIMIT 1",
-                rs -> rs.next() ? rs.getDouble(1) : null,
-                pin
-        );
+        // 4. Query previous snapshot
+        Double previousPercentage = null;
+        try {
+            previousPercentage = jdbcTemplate.query(
+                    "SELECT exam_eligibility_percentage FROM attendance_history " +
+                            "WHERE student_pin = ? ORDER BY snapshot_date DESC, created_at DESC LIMIT 1",
+                    rs -> rs.next() ? rs.getDouble(1) : null,
+                    pin
+            );
+        } catch (Exception e) {
+            System.out.println("    [" + pin + "] Could not fetch previous snapshot: " + e.getMessage());
+        }
 
         boolean hasPreviousRecord = previousPercentage != null;
         Double percentageChange = hasPreviousRecord
                 ? Math.round((totalPercentage - previousPercentage) * 100.0) / 100.0
                 : null;
 
-        // Step 5 — equivalent of "Code in JavaScript2": prediction logic
+        // 5. Prediction logic
         Integer classesNeeded = null;
         String eligibilityStatus = "safe";
         if (totalPercentage < TARGET_PERCENTAGE) {
             double targetDecimal = TARGET_PERCENTAGE / 100.0;
-            double raw = (targetDecimal * examsWorkingDays - examsPresentDays) / (1 - targetDecimal);
-            classesNeeded = (int) Math.ceil(raw);
+            if (targetDecimal < 1.0) {
+                double raw = (targetDecimal * examsWorkingDays - examsPresentDays) / (1 - targetDecimal);
+                classesNeeded = (int) Math.ceil(Math.max(0, raw));
+            }
             eligibilityStatus = totalPercentage < CRITICAL_THRESHOLD ? "critical" : "warning";
         }
 
-        // Step 6 — equivalent of "Code in JavaScript3": build the alert message
-        String message = buildAlertMessage(name, totalPercentage, percentageChange,
-                hasPreviousRecord, classesNeeded, eligibilityStatus);
+        // 6. Save today's snapshot to database (ALWAYS recorded in MySQL)
+        try {
+            jdbcTemplate.update(
+                    "INSERT INTO attendance_history " +
+                            "(student_pin, snapshot_date, current_standing_percentage, exam_eligibility_percentage, " +
+                            "present_days, working_days, exams_working_days, created_at) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+                    pin, LocalDate.now(), totalPercentage, totalPercentage,
+                    numberOfDaysPresent, workingDays, examsWorkingDays
+            );
+            System.out.println("    [" + pin + "] Attendance snapshot saved to database");
+        } catch (Exception dbEx) {
+            System.err.println("    [" + pin + "] Failed to insert attendance snapshot: " + dbEx.getMessage());
+        }
 
-        // Step 7 — equivalent of "Execute a SQL query2": get student email
-        Map<String, Object> userRow = jdbcTemplate.queryForMap(
-                "SELECT email FROM users WHERE username = ? AND role = 'STUDENT' LIMIT 1",
-                pin
-        );
-        String studentEmail = userRow != null ? (String) userRow.get("email") : null;
+        // 7. Lookup student email
+        String studentEmail = null;
+        try {
+            List<String> emails = jdbcTemplate.queryForList(
+                    "SELECT email FROM users WHERE username = ? AND role = 'STUDENT' LIMIT 1",
+                    String.class,
+                    pin
+            );
+            if (!emails.isEmpty()) {
+                studentEmail = emails.get(0);
+            }
+        } catch (Exception e) {
+            System.err.println("    [" + pin + "] Failed to query email: " + e.getMessage());
+        }
 
         System.out.println("    [" + pin + "] Email lookup result: " + studentEmail);
 
         if (studentEmail == null || studentEmail.isBlank()) {
             System.out.println("    [" + pin + "] STOPPED: no email on file");
-            return; // no email on file, skip sending
+            return null;
         }
 
-        // Step 8 — equivalent of "Send an Email"
-        System.out.println("    [" + pin + "] Sending email to: " + studentEmail);
-        sendEmail(studentEmail, name, message);
-        System.out.println("    [" + pin + "] Email sent successfully");
+        // 8. Build message & return payload
+        String message = buildAlertMessage(name, totalPercentage, percentageChange,
+                hasPreviousRecord, classesNeeded, eligibilityStatus);
 
-        // Step 9 — save today's snapshot (not present in the uploaded n8n export,
-        // but needed so tomorrow's "previous percentage" comparison has data)
-        jdbcTemplate.update(
-                "INSERT INTO attendance_history " +
-                        "(student_pin, snapshot_date, current_standing_percentage, exam_eligibility_percentage, " +
-                        "present_days, working_days, exams_working_days, created_at) " +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
-                pin, LocalDate.now(), totalPercentage, totalPercentage,
-                numberOfDaysPresent, workingDays, examsWorkingDays
+        return new AttendanceEmailPayload(
+                studentEmail,
+                name,
+                pin,
+                "PolyConnect Attendance Update – " + name,
+                message
         );
     }
 
     private String buildAlertMessage(String name, double totalPercentage, Double percentageChange,
                                      boolean hasPreviousRecord, Integer classesNeeded, String status) {
         StringBuilder message = new StringBuilder();
-        message.append("Attendance Update for ").append(name).append("\n\n");
-        message.append("Today's Attendance: ").append(totalPercentage).append("%\n");
+        message.append("Dear ").append(name).append(",\n\n");
+        message.append("Here is your daily attendance update from SBTET PolyConnect:\n\n");
+        message.append("• Current Attendance: ").append(totalPercentage).append("%\n");
 
         if (hasPreviousRecord && percentageChange != null) {
             String direction = percentageChange < 0 ? "decreased by" : percentageChange > 0 ? "increased by" : "unchanged";
-            message.append("Change since last check: ").append(direction)
+            message.append("• Change since last check: ").append(direction)
                     .append(" ").append(Math.abs(percentageChange)).append("%\n");
         }
 
         if (totalPercentage < DROP_ALERT_THRESHOLD) {
-            message.append("\nYour attendance dropped below 70%.\n");
+            message.append("\n⚠️ ALERT: Your attendance has dropped below 70%.\n");
         }
 
-        if (classesNeeded != null) {
-            message.append("You need approximately ").append(classesNeeded)
-                    .append(" more classes to reach 75%.\n");
+        if (classesNeeded != null && classesNeeded > 0) {
+            message.append("• Classes Needed: You need approximately ").append(classesNeeded)
+                    .append(" consecutive classes to reach the mandatory 75% examination threshold.\n");
         }
 
         if ("critical".equals(status)) {
-            message.append("\nAt your current attendance rate, you may become ineligible for exams.\n");
+            message.append("\n⛔ CRITICAL WARNING: At your current attendance rate, you are at risk of detention / exam ineligibility.\n");
         }
 
-        return message.toString();
-    }
+        message.append("\nTo view your complete 31-day biometric attendance sheet, visit the PolyConnect portal.\n\n");
+        message.append("Regards,\nState Board of Technical Education and Training (SBTET), Telangana");
 
-    private void sendEmail(String toEmail, String studentName, String body) {
-        SimpleMailMessage mailMessage = new SimpleMailMessage();
-        mailMessage.setFrom(fromEmail);
-        mailMessage.setTo(toEmail);
-        mailMessage.setSubject("PolyConnect Attendance Update — " + studentName);
-        mailMessage.setText(body);
-        mailSender.send(mailMessage);
+        return message.toString();
     }
 }

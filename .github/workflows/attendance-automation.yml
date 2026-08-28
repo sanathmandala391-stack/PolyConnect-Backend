@@ -2,22 +2,140 @@ name: PolyConnect Attendance Automation
 
 on:
   schedule:
-    - cron: "40 12 * * *"
-      timezone: "Asia/Kolkata"
-
+    # Runs at 6:00 AM IST daily (00:30 UTC)
+    - cron: "30 0 * * *"
   workflow_dispatch:
 
 jobs:
-  attendance:
+  attendance-email:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Run attendance automation
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Nodemailer
+        run: npm install nodemailer
+
+      - name: Fetch Attendance from Render and Send Emails via Gmail
+        env:
+          RENDER_BACKEND_URL: ${{ secrets.RENDER_BACKEND_URL }}
+          AUTOMATION_SECRET: ${{ secrets.AUTOMATION_SECRET }}
+          GMAIL_USER: ${{ secrets.MAIL_USERNAME }}
+          GMAIL_APP_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
         run: |
-          echo "Starting PolyConnect attendance automation..."
+          node -e "
+          const https = require('https');
+          const http = require('http');
+          const nodemailer = require('nodemailer');
 
-          curl --fail-with-body -X POST \
-            -H "X-Automation-Secret: ${{ secrets.AUTOMATION_SECRET }}" \
-            "${{ secrets.RENDER_BACKEND_URL }}/automation/attendance"
+          async function main() {
+            const backendUrl = (process.env.RENDER_BACKEND_URL || '').replace(/\/$/, '');
+            const secret = process.env.AUTOMATION_SECRET || '';
+            const gmailUser = process.env.GMAIL_USER || '';
+            const gmailPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
 
-          echo "Attendance automation completed."
+            if (!backendUrl) {
+              console.error('Error: RENDER_BACKEND_URL secret is not configured in GitHub Secrets!');
+              process.exit(1);
+            }
+            if (!gmailUser || !gmailPass) {
+              console.error('Error: MAIL_USERNAME or MAIL_PASSWORD secret is not configured in GitHub Secrets!');
+              process.exit(1);
+            }
+
+            console.log('1. Calling Render backend to process SBTET attendance and sync MySQL database...');
+            const targetUrl = new URL(backendUrl + '/automation/attendance');
+
+            const postData = '';
+            const options = {
+              hostname: targetUrl.hostname,
+              port: targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80),
+              path: targetUrl.pathname + targetUrl.search,
+              method: 'POST',
+              headers: {
+                'X-Automation-Secret': secret,
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(postData)
+              }
+            };
+
+            const client = targetUrl.protocol === 'https:' ? https : http;
+
+            const responseData = await new Promise((resolve, reject) => {
+              const req = client.request(options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                  if (res.statusCode < 200 || res.statusCode >= 300) {
+                    return reject(new Error('Backend returned HTTP ' + res.statusCode + ': ' + data));
+                  }
+                  try {
+                    resolve(JSON.parse(data));
+                  } catch (e) {
+                    reject(new Error('Failed to parse JSON response: ' + data));
+                  }
+                });
+              });
+              req.on('error', reject);
+              req.write(postData);
+              req.end();
+            });
+
+            console.log('>>> Backend processed total students: ' + (responseData.totalProcessed || 0));
+            const emails = responseData.emails || [];
+            console.log('>>> Total student emails to send: ' + emails.length);
+
+            if (emails.length === 0) {
+              console.log('No student emails needed for today.');
+              return;
+            }
+
+            console.log('2. Connecting to Gmail SMTP directly from GitHub Actions runner...');
+            const transporter = nodemailer.createTransport({
+              service: 'gmail',
+              auth: {
+                user: gmailUser,
+                pass: gmailPass
+              }
+            });
+
+            await transporter.verify();
+            console.log('>>> Gmail SMTP connected successfully (Port open, 0 timeouts)!');
+
+            let sentCount = 0;
+            let failCount = 0;
+
+            for (const item of emails) {
+              try {
+                console.log('>>> Sending to [' + (item.pin || 'STUDENT') + '] ' + item.to + '...');
+                await transporter.sendMail({
+                  from: '"PolyConnect SBTET Attendance" <' + gmailUser + '>',
+                  to: item.to,
+                  subject: item.subject,
+                  text: item.body
+                });
+                console.log('    [SUCCESS] Delivered to ' + item.to);
+                sentCount++;
+                await new Promise(r => setTimeout(r, 300));
+              } catch (err) {
+                console.error('    [FAILED] Could not send to ' + item.to + ': ' + err.message);
+                failCount++;
+              }
+            }
+
+            console.log('\n========================================');
+            console.log('Attendance Email Automation Summary:');
+            console.log('Total Processed: ' + responseData.totalProcessed);
+            console.log('Emails Delivered: ' + sentCount);
+            console.log('Emails Failed: ' + failCount);
+            console.log('========================================');
+          }
+
+          main().catch(err => {
+            console.error('Fatal error in automation workflow:', err);
+            process.exit(1);
+          });
+          "
