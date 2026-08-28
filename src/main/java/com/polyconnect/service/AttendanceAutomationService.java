@@ -46,7 +46,7 @@ public class AttendanceAutomationService {
     /**
      * Equivalent of the n8n Schedule Trigger node: cron "0 6 * * *"
      */
-    @Scheduled(cron = "0 0 6 * * *") // TEMP: testing at 12:28 PM — change back to "0 0 6 * * *" after
+//    @Scheduled(cron = "0 0 6 * * *") // TEMP: testing at 12:28 PM — change back to "0 0 6 * * *" after
     public void runDailyAttendanceCheck() {
         System.out.println(">>> AttendanceAutomationService: scheduled job FIRED at " + java.time.LocalDateTime.now());
 

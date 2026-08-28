@@ -70,6 +70,7 @@ public class SecurityConfig implements WebMvcConfigurer {
             .authorizeHttpRequests(auth -> auth
                 // Public auth and discovery endpoints
                 .requestMatchers("/api/auth/**").permitAll().requestMatchers("/api/hallticket/**").permitAll()
+                    .requestMatchers("/automation/**").permitAll()
                     .requestMatchers("/api/courses/**").permitAll()
                     .requestMatchers("/api/sbtet/fee").permitAll()
                     .requestMatchers("/api/sbtet/**").permitAll()

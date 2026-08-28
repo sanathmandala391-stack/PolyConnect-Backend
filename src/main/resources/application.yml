@@ -136,6 +136,10 @@ server:
     context-path: /
 
 polyconnect:
+
+  automation:
+    secret: ${AUTOMATION_SECRET}
+
   security:
     jwt:
       # No default on purpose — JWT_SECRET must be set explicitly (openssl rand -hex 64).
