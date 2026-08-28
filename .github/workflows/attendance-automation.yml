@@ -2,8 +2,8 @@ name: PolyConnect Attendance Automation
 
 on:
   schedule:
-    # Runs at 6:00 AM IST daily (00:30 UTC)
-    - cron: "30 0 * * *"
+    # 2:05 PM IST (14:05 IST) = 08:35 UTC (14:05 minus 5h 30m)
+    - cron: "35 8 * * *"
   workflow_dispatch:
 
 jobs:
