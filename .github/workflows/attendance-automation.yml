@@ -1,0 +1,23 @@
+name: PolyConnect Attendance Automation
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+      timezone: "Asia/Kolkata"
+
+  workflow_dispatch:
+
+jobs:
+  attendance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run attendance automation
+        run: |
+          echo "Starting PolyConnect attendance automation..."
+
+          curl --fail-with-body -X POST \
+            -H "X-Automation-Secret: ${{ secrets.AUTOMATION_SECRET }}" \
+            "${{ secrets.RENDER_BACKEND_URL }}/automation/attendance"
+
+          echo "Attendance automation completed."
