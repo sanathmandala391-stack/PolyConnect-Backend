@@ -52,7 +52,7 @@ public class AttendanceAutomationService {
 
         // Step 1 — equivalent of "Execute a SQL query3": get all approved student PINs
         List<String> pins = jdbcTemplate.queryForList(
-                "SELECT username FROM rama.users WHERE role = 'STUDENT' AND status = 'APPROVED'",
+                "SELECT username FROM users WHERE role = 'STUDENT' AND status = 'APPROVED'",
                 String.class
         );
 
@@ -146,7 +146,7 @@ public class AttendanceAutomationService {
 
         // Step 7 — equivalent of "Execute a SQL query2": get student email
         Map<String, Object> userRow = jdbcTemplate.queryForMap(
-                "SELECT email FROM rama.users WHERE username = ? AND role = 'STUDENT' LIMIT 1",
+                "SELECT email FROM users WHERE username = ? AND role = 'STUDENT' LIMIT 1",
                 pin
         );
         String studentEmail = userRow != null ? (String) userRow.get("email") : null;
