@@ -80,6 +80,9 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .requestMatchers("/api/branches/public").permitAll()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/announcements/public").permitAll()
+
+
+                .requestMatchers("/actuator/health").permitAll()
                 // Admin endpoints
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // HOD endpoints
