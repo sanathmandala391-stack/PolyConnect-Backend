@@ -22,7 +22,7 @@ public class JwtTokenProvider {
         // No default here — must come from JWT_SECRET (see application.yml). If it's missing,
         // Spring fails to start the app rather than silently signing tokens with a known value.
         @Value("${polyconnect.security.jwt.secret}") String secret,
-        @Value("${polyconnect.security.jwt.expiration-ms:86400000}") long jwtExpirationInMs
+        @Value("${polyconnect.security.jwt.expiration-ms:31536000000}") long jwtExpirationInMs
     ) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.jwtExpirationInMs = jwtExpirationInMs;

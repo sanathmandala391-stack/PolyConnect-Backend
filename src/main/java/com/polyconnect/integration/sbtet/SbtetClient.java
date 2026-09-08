@@ -211,6 +211,10 @@ public class SbtetClient {
             int workingDays = summary.path("WorkingDays").asInt(0);
             int examsWorkingDays = summary.path("ExamsWorkingDays").asInt(workingDays);
 
+            String attendeeId = summary.path("AttendeeId").asText(null);
+            String semester = summary.hasNonNull("Semester") ? summary.path("Semester").asText() : (summary.path("semid").asInt(0) > 0 ? summary.path("semid").asInt() + "SEM" : null);
+
+
             // Only these keys are confirmed from a real captured response: WorkingDays,
             // Percentage, TotalPercentage/ExamsPer, ExamsWorkingDays. A present/absent DAY
             // COUNT key was never captured — do not guess one (e.g. "PresentDays"/"AbsentDays"
@@ -242,6 +246,9 @@ public class SbtetClient {
             result.put("currentStandingPercentage", currentStanding);
             result.put("examEligibilityPercentage", examEligibility);
             result.put("isDetentionRisk", detentionRisk);
+            result.put("attendeeId", attendeeId);
+            result.put("semester", semester);
+
             result.put("summary", summary);
         }
 

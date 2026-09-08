@@ -424,6 +424,11 @@ public class SbtetAttendanceSyncService {
         BigDecimal examEligibility = (BigDecimal) data.getOrDefault("examEligibilityPercentage", BigDecimal.ZERO);
         boolean isRisk = (boolean) data.getOrDefault("isDetentionRisk", false);
 
+
+        attendance.setAttendeeId((String) data.get("attendeeId"));
+        attendance.setSemester((String) data.get("semester"));
+
+
         attendance.setWorkingDays(workingDays);
         attendance.setPresentDays(presentDays);
         attendance.setAbsentDays(absentDays);

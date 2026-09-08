@@ -17,6 +17,11 @@ public class Attendance {
 
     @Column(name = "college_id")
     private Long collegeId;
+    @Column(name = "attendee_id")
+    private String attendeeId;
+
+    @Column(name = "semester")
+    private String semester;
 
     @Column(name = "branch_id")
     private Long branchId;
@@ -136,4 +141,11 @@ public class Attendance {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getAttendeeId() { return attendeeId; }
+    public void setAttendeeId(String attendeeId) { this.attendeeId = attendeeId; }
+
+    public String getSemester() { return semester; }
+    public void setSemester(String semester) { this.semester = semester; }
+
 }
