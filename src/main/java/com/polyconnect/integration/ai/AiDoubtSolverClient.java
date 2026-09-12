@@ -24,9 +24,9 @@ public class AiDoubtSolverClient {
             @Value("${polyconnect.gemini.api-key:}") String apiKey,
             @Value("${polyconnect.gemini.model:gemini-3.6-flash}") String modelName
     ) {
-        String key = (apiKey != null && !apiKey.isBlank()) ? apiKey : System.getenv("GEMINI_API_KEY");
-        this.apiKey = key != null ? key.trim() : "";
-        this.modelName = (modelName != null && !modelName.isBlank()) ? modelName : "gemini-3.6-flash";
+        String envKey = System.getenv("GEMINI_API_KEY");
+        this.apiKey = (apiKey != null && !apiKey.isBlank()) ? apiKey.trim() : (envKey != null ? envKey.trim() : "");
+        this.modelName = (modelName != null && !modelName.isBlank()) ? modelName.trim() : "gemini-3.6-flash";
         this.restClient = RestClient.builder()
                 .baseUrl("https://generativelanguage.googleapis.com/v1beta")
                 .defaultHeader("User-Agent", "PolyConnect-SBTET-AI")
@@ -35,11 +35,11 @@ public class AiDoubtSolverClient {
     }
 
     public String solveDoubt(String subjectCode, String subjectName, String topic, String questionText, String base64Image) {
-        String keyToUse = this.apiKey;
-        if (keyToUse == null || keyToUse.isBlank()) {
-            keyToUse = System.getenv("GEMINI_API_KEY");
-        }
-        if (keyToUse == null || keyToUse.isBlank()) {
+        final String effectiveKey = (this.apiKey != null && !this.apiKey.isBlank())
+                ? this.apiKey
+                : System.getenv("GEMINI_API_KEY");
+
+        if (effectiveKey == null || effectiveKey.isBlank()) {
             return generateFallbackResponse(questionText);
         }
 
@@ -94,14 +94,14 @@ public class AiDoubtSolverClient {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("contents", List.of(contents));
 
-            String[] candidateModels = new String[]{modelName, "gemini-3.6-flash", "gemini-flash-latest", "gemini-3.5-flash-lite"};
+            String[] candidateModels = new String[]{this.modelName, "gemini-3.6-flash", "gemini-flash-latest", "gemini-3.5-flash-lite"};
 
             for (String model : candidateModels) {
                 try {
                     String responseBody = restClient.post()
                             .uri(uriBuilder -> uriBuilder
                                     .path("/models/" + model + ":generateContent")
-                                    .queryParam("key", keyToUse)
+                                    .queryParam("key", effectiveKey)
                                     .build())
                             .contentType(MediaType.APPLICATION_JSON)
                             .body(requestBody)
