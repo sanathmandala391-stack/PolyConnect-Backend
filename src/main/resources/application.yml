@@ -74,5 +74,5 @@ polyconnect:
     base-url: https://www.sbtet.telangana.gov.in/api/api
     sync-cron: "0 0 6 * * ?" # Run daily at 2:00 AM
   gemini:
-    api-key: ${GEMINI_API_KEY}
-    model: gemini-3.6-flash
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.6-flash}
