@@ -98,11 +98,19 @@ public class AiDoubtSolverClient {
 
             for (String model : candidateModels) {
                 try {
+//                    String responseBody = restClient.post()
+//                            .uri(uriBuilder -> uriBuilder
+//                                    .path("/models/" + model + ":generateContent")
+//                                    .queryParam("key", effectiveKey)
+//                                    .build())
+//                            .contentType(MediaType.APPLICATION_JSON)
+//                            .body(requestBody)
+//                            .retrieve()
+//                            .body(String.class);
+
                     String responseBody = restClient.post()
-                            .uri(uriBuilder -> uriBuilder
-                                    .path("/models/" + model + ":generateContent")
-                                    .queryParam("key", effectiveKey)
-                                    .build())
+                            .uri("/models/" + model + ":generateContent")
+                            .header("x-goog-api-key", effectiveKey)
                             .contentType(MediaType.APPLICATION_JSON)
                             .body(requestBody)
                             .retrieve()
