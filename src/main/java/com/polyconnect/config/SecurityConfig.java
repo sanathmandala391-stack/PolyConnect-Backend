@@ -87,6 +87,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // HOD endpoints
                     .requestMatchers("/api/whatsapp/webhook").permitAll()
+                    .requestMatchers("/api/automation/whatsapp/**").permitAll()
                 .requestMatchers("/api/hod/**").hasRole("HOD")
                 // Student endpoints
                 .requestMatchers("/api/student/**").hasRole("STUDENT")
