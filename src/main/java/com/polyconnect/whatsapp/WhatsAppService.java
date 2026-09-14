@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service
@@ -76,13 +75,52 @@ public class WhatsAppService {
     }
 
     /**
-     * Convert common Indian phone number formats
-     * into WhatsApp Cloud API format.
+     * Existing test method.
      *
-     * Example:
-     * 9876543210      -> 919876543210
-     * +919876543210   -> 919876543210
-     * 919876543210    -> 919876543210
+     * This is kept because WhatsAppController.java
+     * already uses it.
+     */
+    public JsonNode sendTextMessage(
+            String phoneNumber,
+            String message
+    ) {
+
+        String normalizedPhone = normalizePhoneNumber(phoneNumber);
+
+        Map<String, Object> body = new HashMap<>();
+
+        body.put("messaging_product", "whatsapp");
+        body.put("recipient_type", "individual");
+        body.put("to", normalizedPhone);
+        body.put("type", "text");
+
+        Map<String, Object> text = new HashMap<>();
+
+        text.put("preview_url", false);
+        text.put("body", message);
+
+        body.put("text", text);
+
+        String response = restClient.post()
+                .uri("/{phoneNumberId}/messages", phoneNumberId)
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(String.class);
+
+        try {
+            return objectMapper.readTree(response);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Failed to parse WhatsApp API response",
+                    e
+            );
+        }
+    }
+
+    /**
+     * Normalize phone number for WhatsApp Cloud API.
      */
     private String normalizePhoneNumber(String phoneNumber) {
 
@@ -94,14 +132,17 @@ public class WhatsAppService {
 
         String digits = phoneNumber.replaceAll("\\D", "");
 
+        // Indian 10-digit number
         if (digits.length() == 10) {
             return "91" + digits;
         }
 
+        // Indian number already containing country code
         if (digits.length() == 12 && digits.startsWith("91")) {
             return digits;
         }
 
+        // International format beginning with 00
         if (digits.startsWith("00")) {
             return digits.substring(2);
         }
