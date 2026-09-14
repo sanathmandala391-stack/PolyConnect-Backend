@@ -76,3 +76,9 @@ polyconnect:
   gemini:
     api-key: ${GEMINI_API_KEY:}
     model: ${GEMINI_MODEL:gemini-3.6-flash}
+
+  whatsapp:
+    graph-api-url: ${WHATSAPP_GRAPH_API_URL:https://graph.facebook.com}
+    access-token: ${WHATSAPP_ACCESS_TOKEN:EAGSQxqreZADwBScyefUY5kIP0ORmZCedpHieaB9cagItxvLbczqIT479XZCMSYZAtcGXDyXVbX22ak6KX33cnzZAloi5NlLJPOxL5oKaGrdcZBrahZC9KTFlJ10hd5PQzIZBmFDsY1ugiybZBPP7j0zLZCkxCE3n4pwMirY8KY2XyQfEnSlzpwTsHeEFtdzXII63XVbykUVr9oCtZAZAVZA5AHD4rNC2knG2TevSZBllW2S05O5f9EhiGWC29rj3aCZCX1NzLERRwpVWfyPLZBDaRtIt97ZCX7QZDZD}
+    phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:1311556802046866}
+    verify-token: ${WHATSAPP_VERIFY_TOKEN:PolyConnect_WA_Verify_9f72Kx31}

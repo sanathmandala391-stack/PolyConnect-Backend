@@ -27,10 +27,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 
     @Override
-protected boolean shouldNotFilter(HttpServletRequest request) {
-    return request.getRequestURI().equals("/actuator/health");
-}
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String uri = request.getRequestURI();
 
+        return uri.equals("/actuator/health")
+                || uri.equals("/api/whatsapp/webhook");
+    }
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
