@@ -59,6 +59,11 @@ public class User {
     @Transient
     private String token; // JWT token returned on login
 
+    @Column(name = "whatsapp_opt_in", nullable = false)
+    private boolean whatsappOptIn = false;
+
+
+
     public User() {}
 
     public User(String username, String email, String password, String fullName, Role role, UserStatus status) {
@@ -123,6 +128,14 @@ public class User {
 
     public void setActive(boolean active) {
         this.status = active ? UserStatus.APPROVED : UserStatus.SUSPENDED;
+    }
+
+    public boolean isWhatsappOptIn() {
+        return whatsappOptIn;
+    }
+
+    public void setWhatsappOptIn(boolean whatsappOptIn) {
+        this.whatsappOptIn = whatsappOptIn;
     }
 
 }

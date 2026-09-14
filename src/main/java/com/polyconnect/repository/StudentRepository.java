@@ -20,6 +20,17 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     List<Student> findByCollegeIdAndBranchIdAndStatus(Long collegeId, Long branchId, UserStatus status);
     List<Student> findByCollegeIdAndBranchIdAndDetentionRiskTrue(Long collegeId, Long branchId);
 
+
+    @Query("""
+    SELECT s FROM Student s
+    WHERE s.status = :status
+      AND s.whatsappOptIn = true
+      AND s.phoneNumber IS NOT NULL
+      AND TRIM(s.phoneNumber) <> ''
+""")
+    List<Student> findWhatsAppEligibleStudents(@Param("status") UserStatus status);
+
+
     @Query("SELECT s FROM Student s WHERE s.college.id = :collegeId AND s.branch.id = :branchId AND s.status = 'APPROVED'")
     List<Student> findApprovedStudentsByDepartment(@Param("collegeId") Long collegeId, @Param("branchId") Long branchId);
 }

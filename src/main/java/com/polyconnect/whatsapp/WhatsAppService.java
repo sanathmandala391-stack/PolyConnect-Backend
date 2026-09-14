@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -31,25 +32,30 @@ public class WhatsAppService {
     }
 
     /**
-     * Send a normal WhatsApp text message.
+     * Send an approved WhatsApp template.
      *
-     * Example:
-     * sendTextMessage("919876543210", "Hello from POLYCONNECT!");
+     * Currently using:
+     * hello_world
      */
-    public JsonNode sendTextMessage(String phoneNumber, String message) {
+    public JsonNode sendHelloWorldTemplate(String phoneNumber) {
+
+        String normalizedPhone = normalizePhoneNumber(phoneNumber);
+
+        Map<String, Object> template = new HashMap<>();
+
+        template.put("name", "hello_world");
+
+        template.put(
+                "language",
+                Map.of("code", "en_US")
+        );
 
         Map<String, Object> body = new HashMap<>();
 
         body.put("messaging_product", "whatsapp");
-        body.put("recipient_type", "individual");
-        body.put("to", phoneNumber);
-        body.put("type", "text");
-
-        Map<String, Object> text = new HashMap<>();
-        text.put("preview_url", false);
-        text.put("body", message);
-
-        body.put("text", text);
+        body.put("to", normalizedPhone);
+        body.put("type", "template");
+        body.put("template", template);
 
         String response = restClient.post()
                 .uri("/{phoneNumberId}/messages", phoneNumberId)
@@ -67,5 +73,41 @@ public class WhatsAppService {
                     e
             );
         }
+    }
+
+    /**
+     * Convert common Indian phone number formats
+     * into WhatsApp Cloud API format.
+     *
+     * Example:
+     * 9876543210      -> 919876543210
+     * +919876543210   -> 919876543210
+     * 919876543210    -> 919876543210
+     */
+    private String normalizePhoneNumber(String phoneNumber) {
+
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Phone number is empty"
+            );
+        }
+
+        String digits = phoneNumber.replaceAll("\\D", "");
+
+        if (digits.length() == 10) {
+            return "91" + digits;
+        }
+
+        if (digits.length() == 12 && digits.startsWith("91")) {
+            return digits;
+        }
+
+        if (digits.startsWith("00")) {
+            return digits.substring(2);
+        }
+
+        throw new IllegalArgumentException(
+                "Invalid phone number format: " + phoneNumber
+        );
     }
 }

@@ -52,8 +52,15 @@ public class StudentApprovalService {
         approval.setDecidedAt(LocalDateTime.now());
 
         // Update student account status
+        // Update student account status
         User student = approval.getStudent();
         student.setStatus(newStatus);
+
+// Automatically enable WhatsApp notifications when student is approved
+        if (approve) {
+            student.setWhatsappOptIn(true);
+        }
+
         userRepository.save(student);
 
         return studentApprovalRepository.save(approval);
