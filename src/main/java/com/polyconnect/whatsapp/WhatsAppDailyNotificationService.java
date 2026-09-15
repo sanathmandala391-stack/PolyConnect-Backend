@@ -70,8 +70,14 @@ public class WhatsAppDailyNotificationService {
             }
 
             try {
-
-                whatsAppService.sendHelloWorldTemplate(phoneNumber);
+                whatsAppService.sendDailyAttendanceTemplate(
+                        phoneNumber,
+                        student.getUsername(),
+                        "75.00",
+                        "+1.67%",
+                        "Good! Your attendance is above the target.",
+                        "0"
+                );
 
                 success++;
 
