@@ -189,33 +189,40 @@ public class WhatsAppService {
                 Map.of("code", "en")
         );
 
-        Map<String, Object> bodyParameter1 =
-                Map.of("type", "text", "text", studentName);
+        Map<String, Object> component = new HashMap<>();
 
-        Map<String, Object> bodyParameter2 =
-                Map.of("type", "text", "text", currentAttendance);
+        component.put("type", "body");
 
-        Map<String, Object> bodyParameter3 =
-                Map.of("type", "text", "text", changeSinceLastCheck);
-
-        Map<String, Object> bodyParameter4 =
-                Map.of("type", "text", "text", statusMessage);
-
-        Map<String, Object> bodyParameter5 =
-                Map.of("type", "text", "text", classesNeeded);
-
-        Map<String, Object> parameters = Map.of(
-                "body",
+        component.put(
+                "parameters",
                 java.util.List.of(
-                        bodyParameter1,
-                        bodyParameter2,
-                        bodyParameter3,
-                        bodyParameter4,
-                        bodyParameter5
+                        Map.of(
+                                "type", "text",
+                                "text", studentName
+                        ),
+                        Map.of(
+                                "type", "text",
+                                "text", currentAttendance
+                        ),
+                        Map.of(
+                                "type", "text",
+                                "text", changeSinceLastCheck
+                        ),
+                        Map.of(
+                                "type", "text",
+                                "text", statusMessage
+                        ),
+                        Map.of(
+                                "type", "text",
+                                "text", classesNeeded
+                        )
                 )
         );
 
-        template.put("components", java.util.List.of(parameters));
+        template.put(
+                "components",
+                java.util.List.of(component)
+        );
 
         Map<String, Object> body = new HashMap<>();
 
