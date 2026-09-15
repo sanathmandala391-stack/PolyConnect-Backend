@@ -128,8 +128,13 @@ public class WhatsAppController {
         try {
 
             return ResponseEntity.ok(
-                    whatsAppService.sendHelloWorldTemplate(
-                            phoneNumber
+                    whatsAppService.sendDailyAttendanceTemplate(
+                            phoneNumber,
+                            "Sana",
+                            "72.5",
+                            "↓ 2.1%",
+                            "⚠️ Your attendance is below 75%.",
+                            "3"
                     )
             );
 
