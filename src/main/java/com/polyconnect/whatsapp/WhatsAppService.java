@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -31,10 +32,11 @@ public class WhatsAppService {
     }
 
     /**
-     * Send an approved WhatsApp template.
+     * Send the Meta hello_world test template.
      *
-     * Currently using:
-     * hello_world
+     * NOTE:
+     * hello_world works only with Meta's public test numbers.
+     * It is NOT used by the production daily job.
      */
     public JsonNode sendHelloWorldTemplate(String phoneNumber) {
 
@@ -58,27 +60,22 @@ public class WhatsAppService {
 
         String response = restClient.post()
                 .uri("/{phoneNumberId}/messages", phoneNumberId)
-                .header("Authorization", "Bearer " + accessToken)
+                .header(
+                        "Authorization",
+                        "Bearer " + accessToken
+                )
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()
                 .body(String.class);
 
-        try {
-            return objectMapper.readTree(response);
-        } catch (Exception e) {
-            throw new RuntimeException(
-                    "Failed to parse WhatsApp API response",
-                    e
-            );
-        }
+        return parseResponse(response);
     }
 
     /**
-     * Existing test method.
+     * Send a normal WhatsApp text message.
      *
-     * This is kept because WhatsAppController.java
-     * already uses it.
+     * Kept because WhatsAppController uses this method.
      */
     public JsonNode sendTextMessage(
             String phoneNumber,
@@ -103,63 +100,29 @@ public class WhatsAppService {
 
         String response = restClient.post()
                 .uri("/{phoneNumberId}/messages", phoneNumberId)
-                .header("Authorization", "Bearer " + accessToken)
+                .header(
+                        "Authorization",
+                        "Bearer " + accessToken
+                )
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()
                 .body(String.class);
 
-        try {
-            return objectMapper.readTree(response);
-        } catch (Exception e) {
-            throw new RuntimeException(
-                    "Failed to parse WhatsApp API response",
-                    e
-            );
-        }
+        return parseResponse(response);
     }
 
     /**
-     * Normalize phone number for WhatsApp Cloud API.
-     */
-    private String normalizePhoneNumber(String phoneNumber) {
-
-        if (phoneNumber == null || phoneNumber.isBlank()) {
-            throw new IllegalArgumentException(
-                    "Phone number is empty"
-            );
-        }
-
-        String digits = phoneNumber.replaceAll("\\D", "");
-
-        // Indian 10-digit number
-        if (digits.length() == 10) {
-            return "91" + digits;
-        }
-
-        // Indian number already containing country code
-        if (digits.length() == 12 && digits.startsWith("91")) {
-            return digits;
-        }
-
-        // International format beginning with 00
-        if (digits.startsWith("00")) {
-            return digits.substring(2);
-        }
-
-        throw new IllegalArgumentException(
-                "Invalid phone number format: " + phoneNumber
-        );
-    }
-
-
-    /**
-     * Send the POLYCONNECT daily attendance template.
+     * Send POLYCONNECT daily attendance template.
      *
-     * Template:
+     * Template name:
      * polyconnect_daily_attendance
      *
+     * Template language:
+     * English (US) -> en_US
+     *
      * Variables:
+     *
      * {{1}} = Student name
      * {{2}} = Current attendance
      * {{3}} = Change since last check
@@ -175,80 +138,203 @@ public class WhatsAppService {
             String classesNeeded
     ) {
 
-        String normalizedPhone = normalizePhoneNumber(phoneNumber);
+        String normalizedPhone =
+                normalizePhoneNumber(phoneNumber);
 
-        Map<String, Object> template = new HashMap<>();
+        /*
+         * Create template parameters.
+         */
+        List<Map<String, Object>> parameters = List.of(
+
+                Map.of(
+                        "type", "text",
+                        "text", studentName
+                ),
+
+                Map.of(
+                        "type", "text",
+                        "text", currentAttendance
+                ),
+
+                Map.of(
+                        "type", "text",
+                        "text", changeSinceLastCheck
+                ),
+
+                Map.of(
+                        "type", "text",
+                        "text", statusMessage
+                ),
+
+                Map.of(
+                        "type", "text",
+                        "text", classesNeeded
+                )
+        );
+
+        /*
+         * Create BODY component.
+         */
+        Map<String, Object> bodyComponent =
+                new HashMap<>();
+
+        bodyComponent.put(
+                "type",
+                "body"
+        );
+
+        bodyComponent.put(
+                "parameters",
+                parameters
+        );
+
+        /*
+         * Create template.
+         */
+        Map<String, Object> template =
+                new HashMap<>();
 
         template.put(
                 "name",
                 "polyconnect_daily_attendance"
         );
 
+        /*
+         * IMPORTANT:
+         * Your Meta template is English (US).
+         */
         template.put(
                 "language",
-                Map.of("code", "en")
-        );
-
-        Map<String, Object> component = new HashMap<>();
-
-        component.put("type", "body");
-
-        component.put(
-                "parameters",
-                java.util.List.of(
-                        Map.of(
-                                "type", "text",
-                                "text", studentName
-                        ),
-                        Map.of(
-                                "type", "text",
-                                "text", currentAttendance
-                        ),
-                        Map.of(
-                                "type", "text",
-                                "text", changeSinceLastCheck
-                        ),
-                        Map.of(
-                                "type", "text",
-                                "text", statusMessage
-                        ),
-                        Map.of(
-                                "type", "text",
-                                "text", classesNeeded
-                        )
-                )
+                Map.of("code", "en_US")
         );
 
         template.put(
                 "components",
-                java.util.List.of(component)
+                List.of(bodyComponent)
         );
 
-        Map<String, Object> body = new HashMap<>();
+        /*
+         * Create WhatsApp request body.
+         */
+        Map<String, Object> requestBody =
+                new HashMap<>();
 
-        body.put("messaging_product", "whatsapp");
-        body.put("to", normalizedPhone);
-        body.put("type", "template");
-        body.put("template", template);
+        requestBody.put(
+                "messaging_product",
+                "whatsapp"
+        );
 
+        requestBody.put(
+                "to",
+                normalizedPhone
+        );
+
+        requestBody.put(
+                "type",
+                "template"
+        );
+
+        requestBody.put(
+                "template",
+                template
+        );
+
+        /*
+         * Send request to Meta Graph API.
+         */
         String response = restClient.post()
-                .uri("/{phoneNumberId}/messages", phoneNumberId)
+                .uri(
+                        "/{phoneNumberId}/messages",
+                        phoneNumberId
+                )
                 .header(
                         "Authorization",
                         "Bearer " + accessToken
                 )
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(body)
+                .contentType(
+                        MediaType.APPLICATION_JSON
+                )
+                .body(requestBody)
                 .retrieve()
                 .body(String.class);
 
+        return parseResponse(response);
+    }
+
+    /**
+     * Parse Meta API response.
+     */
+    private JsonNode parseResponse(String response) {
+
         try {
+
             return objectMapper.readTree(response);
+
         } catch (Exception e) {
+
             throw new RuntimeException(
                     "Failed to parse WhatsApp API response",
                     e
             );
         }
+    }
+
+    /**
+     * Normalize phone number for WhatsApp Cloud API.
+     */
+    private String normalizePhoneNumber(
+            String phoneNumber
+    ) {
+
+        if (
+                phoneNumber == null
+                        || phoneNumber.isBlank()
+        ) {
+
+            throw new IllegalArgumentException(
+                    "Phone number is empty"
+            );
+        }
+
+        String digits =
+                phoneNumber.replaceAll("\\D", "");
+
+        /*
+         * Indian 10-digit number.
+         * Example:
+         * 9876543210
+         *
+         * becomes:
+         * 919876543210
+         */
+        if (digits.length() == 10) {
+
+            return "91" + digits;
+        }
+
+        /*
+         * Indian number already containing
+         * country code.
+         */
+        if (
+                digits.length() == 12
+                        && digits.startsWith("91")
+        ) {
+
+            return digits;
+        }
+
+        /*
+         * International number beginning with 00.
+         */
+        if (digits.startsWith("00")) {
+
+            return digits.substring(2);
+        }
+
+        throw new IllegalArgumentException(
+                "Invalid phone number format: "
+                        + phoneNumber
+        );
     }
 }
