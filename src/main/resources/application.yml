@@ -79,7 +79,7 @@ polyconnect:
 
   whatsapp:
     graph-api-url: ${WHATSAPP_GRAPH_API_URL:https://graph.facebook.com}
-    access-token: ${WHATSAPP_ACCESS_TOKEN:EAGSQxqreZADwBSXc80lwZCs38cIZCqQGohbyJO5LJdJhac1nyhseLuocICDcgqpPRdP60sS9tTock21DctTPh9GFPAvSOK14gx4kuuoZCn6ZC77Ls0n7BZBGAXbksBBH4Astm6vZCFwYxrnm5ilKMuCxJQyDSaEt0CAAKwIl5LObsmTbSnaNLLCzhQD9cJlFFJ96QZDZD}
+    access-token: ${WHATSAPP_ACCESS_TOKEN:EAGSQxqreZADwBSdNxUcBr1vCMOajllUZC6NTT0kZAoZBF6nW3fW9ZBjQdHtSn1KYpIz9V6dztZB29VpeIXQAI77c8ZCIIFu5MZAsCGvR7FwbI5yLcAqRrtoC6mGfgBW9v7xstsB7Ii46uxEqsie9iiuIuZBw46ZBKZB5n7wjHsv7o9OXw9Pyqu9NhiKpq2bTtHOl1yxgQZDZD}
     phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:1317473298114692}
     verify-token: ${WHATSAPP_VERIFY_TOKEN:PolyConnect_WA_Verify_9f72Kx31}
 
