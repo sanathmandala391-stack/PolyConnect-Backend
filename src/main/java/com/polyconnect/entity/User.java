@@ -63,6 +63,12 @@ public class User {
     private boolean whatsappOptIn = false;
 
 
+    @Column(name = "telegram_chat_id", length = 50)
+    private String telegramChatId;
+
+    @Column(name = "telegram_opt_in", nullable = false)
+    private boolean telegramOptIn = false;
+
 
     public User() {}
 
@@ -138,4 +144,19 @@ public class User {
         this.whatsappOptIn = whatsappOptIn;
     }
 
+    public String getTelegramChatId() {
+        return telegramChatId;
+    }
+
+    public void setTelegramChatId(String telegramChatId) {
+        this.telegramChatId = telegramChatId;
+    }
+
+    public boolean isTelegramOptIn() {
+        return telegramOptIn;
+    }
+
+    public void setTelegramOptIn(boolean telegramOptIn) {
+        this.telegramOptIn = telegramOptIn;
+    }
 }

@@ -19,6 +19,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
             Role role,
             UserStatus status
     );
+    List<User> findByRoleAndStatusAndTelegramOptInTrueAndTelegramChatIdIsNotNull(
+            Role role,
+            UserStatus status
+    );
     List<User> findByRoleAndStatus(Role role, UserStatus status);
     List<User> findByCollegeIdAndBranchIdAndRole(Long collegeId, Long branchId, Role role);
 }
