@@ -1,7 +1,5 @@
 package com.polyconnect.whatsapp;
 
-
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -50,26 +48,13 @@ public class WhatsAppController {
         System.out.println(payload);
         System.out.println("======================================");
 
-        // Later we can process:
-        // - incoming messages
-        // - delivered status
-        // - read status
-        // - failed messages
-
         return ResponseEntity.ok("EVENT_RECEIVED");
     }
 
     /**
-     * Test endpoint to send one WhatsApp message.
+     * Test normal text message.
      *
-     * Example:
      * POST /api/whatsapp/test
-     *
-     * JSON:
-     * {
-     *   "phoneNumber": "919876543210",
-     *   "message": "Hello from POLYCONNECT!"
-     * }
      */
     @PostMapping("/test")
     public ResponseEntity<?> testMessage(
@@ -81,19 +66,81 @@ public class WhatsAppController {
 
         if (phoneNumber == null || phoneNumber.isBlank()) {
             return ResponseEntity.badRequest()
-                    .body(Map.of("error", "phoneNumber is required"));
+                    .body(Map.of(
+                            "error",
+                            "phoneNumber is required"
+                    ));
         }
 
         if (message == null || message.isBlank()) {
             return ResponseEntity.badRequest()
-                    .body(Map.of("error", "message is required"));
+                    .body(Map.of(
+                            "error",
+                            "message is required"
+                    ));
         }
 
-        return ResponseEntity.ok(
-                whatsAppService.sendTextMessage(
-                        phoneNumber,
-                        message
-                )
-        );
+        try {
+
+            return ResponseEntity.ok(
+                    whatsAppService.sendTextMessage(
+                            phoneNumber,
+                            message
+                    )
+            );
+
+        } catch (Exception e) {
+
+            return ResponseEntity
+                    .internalServerError()
+                    .body(Map.of(
+                            "status", "ERROR",
+                            "message", e.getMessage()
+                    ));
+        }
+    }
+
+    /**
+     * Test the approved WhatsApp template.
+     *
+     * POST /api/whatsapp/test-template
+     *
+     * JSON:
+     * {
+     *   "phoneNumber": "919876543210"
+     * }
+     */
+    @PostMapping("/test-template")
+    public ResponseEntity<?> testTemplate(
+            @RequestBody Map<String, String> request
+    ) {
+
+        String phoneNumber = request.get("phoneNumber");
+
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of(
+                            "error",
+                            "phoneNumber is required"
+                    ));
+        }
+
+        try {
+
+            return ResponseEntity.ok(
+                    whatsAppService.sendHelloWorldTemplate(
+                            phoneNumber
+                    )
+            );
+
+        } catch (Exception e) {
+
+            return ResponseEntity
+                    .internalServerError()
+                    .body(Map.of(
+                            "status", "ERROR",
+                            "message", e.getMessage()
+                    ));
+        }
     }
 }
