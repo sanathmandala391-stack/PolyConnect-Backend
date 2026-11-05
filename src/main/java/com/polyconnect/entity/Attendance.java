@@ -38,6 +38,9 @@ public class Attendance {
     @Column(name = "exams_working_days", nullable = false)
     private Integer examsWorkingDays = 0;
 
+    @Transient
+    private Integer examsPresentDays;
+
     // Current standing percentage: (present_days / working_days) * 100
     @Column(name = "current_standing_percentage", precision = 5, scale = 2, nullable = false)
     private BigDecimal currentStandingPercentage = BigDecimal.ZERO;
@@ -108,6 +111,19 @@ public class Attendance {
 
     public Integer getExamsWorkingDays() { return examsWorkingDays; }
     public void setExamsWorkingDays(Integer examsWorkingDays) { this.examsWorkingDays = examsWorkingDays; }
+    public Integer getExamsPresentDays() {
+        if (examsPresentDays == null && rawSummaryJson != null) {
+            try {
+                com.fasterxml.jackson.databind.JsonNode n = new com.fasterxml.jackson.databind.ObjectMapper().readTree(rawSummaryJson);
+                if (n.hasNonNull("ExamsNDP")) {
+                    return n.get("ExamsNDP").asInt();
+                }
+            } catch (Exception ignored) {}
+        }
+        return examsPresentDays != null ? examsPresentDays : presentDays;
+    }
+    public void setExamsPresentDays(Integer examsPresentDays) { this.examsPresentDays = examsPresentDays; }
+
 
     public BigDecimal getCurrentStandingPercentage() { return currentStandingPercentage; }
     public void setCurrentStandingPercentage(BigDecimal currentStandingPercentage) { this.currentStandingPercentage = currentStandingPercentage; }

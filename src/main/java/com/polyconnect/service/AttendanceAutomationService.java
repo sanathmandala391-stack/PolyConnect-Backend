@@ -169,13 +169,19 @@ public class AttendanceAutomationService {
 
         // 3. Extract fields
         String name = tableItem.path("Name").asText("Student");
-        double totalPercentage = tableItem.path("TotalPercentage").asDouble(0);
-        int examsPresentDays = tableItem.path("ExamsNDP").asInt(0);
-        int examsWorkingDays = tableItem.path("ExamsWorkingDays").asInt(0);
-        int numberOfDaysPresent = tableItem.path("NumberOfDaysPresent").asInt(0);
-        int workingDays = tableItem.path("WorkingDays").asInt(0);
+        double currentStanding = tableItem.hasNonNull("Percentage")
+                ? tableItem.path("Percentage").asDouble(0.0)
+                : tableItem.path("TotalPercentage").asDouble(0.0);
+        double examEligibility = tableItem.hasNonNull("ExamsPer")
+                ? tableItem.path("ExamsPer").asDouble(0.0)
+                : (tableItem.hasNonNull("TotalPercentage") ? tableItem.path("TotalPercentage").asDouble(currentStanding) : currentStanding);
 
-        System.out.println("    [" + pin + "] Parsed: name=" + name + " totalPercentage=" + totalPercentage);
+        int examsPresentDays = tableItem.path("ExamsNDP").asInt(0);
+        int examsWorkingDays = tableItem.path("ExamsWorkingDays").asInt(180);
+        int numberOfDaysPresent = tableItem.path("NumberOfDaysPresent").asInt(0);
+        int workingDays = tableItem.path("WorkingDays").asInt(180);
+
+        System.out.println("    [" + pin + "] Parsed: name=" + name + " currentStanding=" + currentStanding + " examEligibility=" + examEligibility);
 
         // 4. Query previous snapshot
         Double previousPercentage = null;
@@ -192,34 +198,64 @@ public class AttendanceAutomationService {
 
         boolean hasPreviousRecord = previousPercentage != null;
         Double percentageChange = hasPreviousRecord
-                ? Math.round((totalPercentage - previousPercentage) * 100.0) / 100.0
+                ? Math.round((examEligibility - previousPercentage) * 100.0) / 100.0
                 : null;
 
-        // 5. Prediction logic
+        // 5. Prediction logic based on Exam Eligibility
         Integer classesNeeded = null;
         String eligibilityStatus = "safe";
-        if (totalPercentage < TARGET_PERCENTAGE) {
+        if (examEligibility < TARGET_PERCENTAGE) {
             double targetDecimal = TARGET_PERCENTAGE / 100.0;
             if (targetDecimal < 1.0) {
                 double raw = (targetDecimal * examsWorkingDays - examsPresentDays) / (1 - targetDecimal);
                 classesNeeded = (int) Math.ceil(Math.max(0, raw));
             }
-            eligibilityStatus = totalPercentage < CRITICAL_THRESHOLD ? "critical" : "warning";
+            eligibilityStatus = examEligibility < CRITICAL_THRESHOLD ? "critical" : "warning";
         }
 
-        // 6. Save today's snapshot to database (ALWAYS recorded in MySQL)
+        // 6. Save today's snapshot to database (recorded in MySQL)
         try {
             jdbcTemplate.update(
                     "INSERT INTO attendance_history " +
                             "(student_pin, snapshot_date, current_standing_percentage, exam_eligibility_percentage, " +
                             "present_days, working_days, exams_working_days, created_at) " +
                             "VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
-                    pin, LocalDate.now(), totalPercentage, totalPercentage,
+                    pin, LocalDate.now(), currentStanding, examEligibility,
                     numberOfDaysPresent, workingDays, examsWorkingDays
             );
-            System.out.println("    [" + pin + "] Attendance snapshot saved to database");
+            System.out.println("    [" + pin + "] Attendance snapshot saved to attendance_history");
         } catch (Exception dbEx) {
             System.err.println("    [" + pin + "] Failed to insert attendance snapshot: " + dbEx.getMessage());
+        }
+
+        // Also synchronize main attendance table in MySQL
+        try {
+            boolean isRisk = examEligibility < TARGET_PERCENTAGE;
+            jdbcTemplate.update(
+                    "UPDATE attendance SET " +
+                            "working_days = ?, " +
+                            "present_days = ?, " +
+                            "absent_days = ?, " +
+                            "exams_working_days = ?, " +
+                            "current_standing_percentage = ?, " +
+                            "exam_eligibility_percentage = ?, " +
+                            "is_detention_risk = ?, " +
+                            "last_synced_at = NOW(), " +
+                            "raw_summary_json = ? " +
+                            "WHERE student_pin = ?",
+                    workingDays,
+                    numberOfDaysPresent,
+                    Math.max(0, workingDays - numberOfDaysPresent),
+                    examsWorkingDays,
+                    currentStanding,
+                    examEligibility,
+                    isRisk,
+                    tableItem.toString(),
+                    pin
+            );
+            System.out.println("    [" + pin + "] Updated main attendance table in MySQL");
+        } catch (Exception dbEx) {
+            System.err.println("    [" + pin + "] Failed to update attendance table: " + dbEx.getMessage());
         }
 
         // 7. Lookup student email
@@ -245,24 +281,28 @@ public class AttendanceAutomationService {
         }
 
         // 8. Build message & return payload
-        String message = buildAlertMessage(name, totalPercentage, percentageChange,
-                hasPreviousRecord, classesNeeded, eligibilityStatus);
+        String message = buildAlertMessage(name, examEligibility, currentStanding,
+                numberOfDaysPresent, workingDays, examsPresentDays, examsWorkingDays,
+                percentageChange, hasPreviousRecord, classesNeeded, eligibilityStatus);
 
         return new AttendanceEmailPayload(
                 studentEmail,
                 name,
                 pin,
-                "PolyConnect Attendance Update – " + name,
+                "PolyConnect Attendance Update - " + name,
                 message
         );
     }
 
-    private String buildAlertMessage(String name, double totalPercentage, Double percentageChange,
-                                     boolean hasPreviousRecord, Integer classesNeeded, String status) {
+    private String buildAlertMessage(String name, double examEligibility, double currentStanding,
+                                     int numberOfDaysPresent, int workingDays, int examsPresentDays, int examsWorkingDays,
+                                     Double percentageChange, boolean hasPreviousRecord, Integer classesNeeded, String status) {
         StringBuilder message = new StringBuilder();
         message.append("Dear ").append(name).append(",\n\n");
         message.append("Here is your daily attendance update from SBTET PolyConnect:\n\n");
-        message.append("• Current Attendance: ").append(totalPercentage).append("%\n");
+        message.append("• Exam Eligibility Attendance: ").append(String.format("%.2f", examEligibility)).append("%\n");
+        message.append("• Current Academic Standing: ").append(String.format("%.2f", currentStanding)).append("% (").append(numberOfDaysPresent).append("/").append(workingDays).append(" days present)\n");
+        message.append("• Total Exam Present Days: ").append(examsPresentDays).append("/").append(examsWorkingDays).append(" days\n");
 
         if (hasPreviousRecord && percentageChange != null) {
             String direction = percentageChange < 0 ? "decreased by" : percentageChange > 0 ? "increased by" : "unchanged";
@@ -270,17 +310,17 @@ public class AttendanceAutomationService {
                     .append(" ").append(Math.abs(percentageChange)).append("%\n");
         }
 
-        if (totalPercentage < DROP_ALERT_THRESHOLD) {
-            message.append("\n⚠️ ALERT: Your attendance has dropped below 70%.\n");
-        }
-
-        if (classesNeeded != null && classesNeeded > 0) {
-            message.append("• Classes Needed: You need approximately ").append(classesNeeded)
-                    .append(" consecutive classes to reach the mandatory 75% examination threshold.\n");
-        }
-
-        if ("critical".equals(status)) {
-            message.append("\n⛔ CRITICAL WARNING: At your current attendance rate, you are at risk of detention / exam ineligibility.\n");
+        if (examEligibility < TARGET_PERCENTAGE) {
+            message.append("\n⚠️ ALERT: Your exam eligibility attendance is below 75%.\n");
+            if (classesNeeded != null && classesNeeded > 0) {
+                message.append("• Classes Needed: You need approximately ").append(classesNeeded)
+                        .append(" consecutive classes to reach the mandatory 75% examination threshold.\n");
+            }
+            if ("critical".equals(status)) {
+                message.append("\n🛑 CRITICAL WARNING: At your current attendance rate, you are at risk of detention / exam ineligibility.\n");
+            }
+        } else {
+            message.append("\n✅ You are currently ELIGIBLE for examinations (Attendance ≥ 75%). Keep up the good work!\n");
         }
 
         message.append("\nTo view your complete 31-day biometric attendance sheet, visit the PolyConnect portal.\n\n");

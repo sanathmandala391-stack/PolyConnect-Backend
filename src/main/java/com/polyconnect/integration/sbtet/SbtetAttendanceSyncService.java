@@ -252,7 +252,7 @@ public class SbtetAttendanceSyncService {
         this.notificationRepository = notificationRepository;
     }
 
-    @Scheduled(cron = "${polyconnect.sbtet.sync-cron:0 0 6 * * ?}")
+    @Scheduled(cron = "${polyconnect.sbtet.sync-cron:0 */10 * * * ?}")
     @Transactional
     public void syncAllStudentsAttendance() {
         List<Student> students = studentRepository.findAll();
@@ -429,14 +429,39 @@ public class SbtetAttendanceSyncService {
         attendance.setSemester((String) data.get("semester"));
 
 
+        int examsPresentDays = (int) data.getOrDefault("examsPresentDays", presentDays);
+
         attendance.setWorkingDays(workingDays);
         attendance.setPresentDays(presentDays);
+        attendance.setExamsPresentDays(examsPresentDays);
         attendance.setAbsentDays(absentDays);
         attendance.setExamsWorkingDays(examsWorkingDays);
         attendance.setCurrentStandingPercentage(currentStanding);
         attendance.setExamEligibilityPercentage(examEligibility);
         attendance.setDetentionRisk(isRisk);
         attendance.setLastSyncedAt(LocalDateTime.now());
+
+        if (data.containsKey("summary") && data.get("summary") != null) {
+            try {
+                attendance.setRawSummaryJson(objectMapper.writeValueAsString(data.get("summary")));
+            } catch (Exception e) {
+                log.error("Failed to serialize raw summary for PIN {}", student.getPin());
+            }
+        }
+        if (data.containsKey("dailyRecords") && data.get("dailyRecords") != null) {
+            try {
+                attendance.setRawCalendarJson(objectMapper.writeValueAsString(data.get("dailyRecords")));
+            } catch (Exception e) {
+                log.error("Failed to serialize raw calendar for PIN {}", student.getPin());
+            }
+        }
+        if (data.containsKey("monthLookup") && data.get("monthLookup") != null) {
+            try {
+                attendance.setRawMonthLookupJson(objectMapper.writeValueAsString(data.get("monthLookup")));
+            } catch (Exception e) {
+                log.error("Failed to serialize raw month lookup for PIN {}", student.getPin());
+            }
+        }
 
         // ---- daily records: now `attendance` exists, so this compiles ----
         Object dailyRecordsRaw = data.get("dailyRecords");

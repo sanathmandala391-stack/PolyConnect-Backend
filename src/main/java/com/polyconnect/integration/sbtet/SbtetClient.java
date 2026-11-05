@@ -215,32 +215,37 @@ public class SbtetClient {
             String semester = summary.hasNonNull("Semester") ? summary.path("Semester").asText() : (summary.path("semid").asInt(0) > 0 ? summary.path("semid").asInt() + "SEM" : null);
 
 
-            // Only these keys are confirmed from a real captured response: WorkingDays,
-            // Percentage, TotalPercentage/ExamsPer, ExamsWorkingDays. A present/absent DAY
-            // COUNT key was never captured — do not guess one (e.g. "PresentDays"/"AbsentDays"
-            // are NOT confirmed). If you capture a real response and confirm the actual key,
-            // add it here explicitly instead of falling back to a computed guess.
-            double currentStandingPct = summary.path("Percentage").asDouble(0.0);
-            double examEligibilityPct = summary.path("TotalPercentage").asDouble(
-                summary.path("ExamsPer").asDouble(0.0)
-            );
+                        // Confirmed SBTET biometric fields:
+            // "Percentage" or "TotalPercentage" represents current academic standing (e.g. 40.0)
+            double currentStandingPct = summary.hasNonNull("Percentage")
+                    ? summary.path("Percentage").asDouble(0.0)
+                    : summary.path("TotalPercentage").asDouble(0.0);
+
+            // "ExamsPer" represents examination eligibility percentage (e.g. 95.56)
+            double examEligibilityPct = summary.hasNonNull("ExamsPer")
+                    ? summary.path("ExamsPer").asDouble(0.0)
+                    : (summary.hasNonNull("TotalPercentage") ? summary.path("TotalPercentage").asDouble(currentStandingPct) : currentStandingPct);
 
             BigDecimal currentStanding = BigDecimal.valueOf(currentStandingPct).setScale(2, RoundingMode.HALF_UP);
             BigDecimal examEligibility = BigDecimal.valueOf(examEligibilityPct).setScale(2, RoundingMode.HALF_UP);
             boolean detentionRisk = examEligibility.compareTo(new BigDecimal("75.00")) < 0;
 
-            // presentDays/absentDays: SBTET's raw JSON key for a day COUNT (as opposed to the
-            // confirmed percentage fields) was never captured in a real response, so it is
-            // derived here from two fields that ARE confirmed (Percentage x WorkingDays) rather
-            // than guessed from an invented key name. Treat this as an estimate for display
-            // only — if you capture a real response and find the actual count field, read it
-            // directly instead and remove this derivation.
-            int presentDays = (int) Math.round(currentStandingPct / 100.0 * workingDays);
+            // "NumberOfDaysPresent": 72.0 (regular present days)
+            int presentDays = summary.hasNonNull("NumberOfDaysPresent")
+                    ? (int) Math.round(summary.path("NumberOfDaysPresent").asDouble())
+                    : (int) Math.round(currentStandingPct / 100.0 * workingDays);
+
+            // "ExamsNDP": 172.0 (exams number of days present)
+            int examsPresentDays = summary.hasNonNull("ExamsNDP")
+                    ? (int) Math.round(summary.path("ExamsNDP").asDouble())
+                    : (int) Math.round(examEligibilityPct / 100.0 * examsWorkingDays);
+
             int absentDays = Math.max(0, workingDays - presentDays);
 
             result.put("workingDays", workingDays);
             result.put("presentDays", presentDays);
-            result.put("presentDaysIsEstimated", true);
+            result.put("examsPresentDays", examsPresentDays);
+            result.put("presentDaysIsEstimated", !summary.hasNonNull("NumberOfDaysPresent"));
             result.put("absentDays", absentDays);
             result.put("examsWorkingDays", examsWorkingDays);
             result.put("currentStandingPercentage", currentStanding);
@@ -254,6 +259,7 @@ public class SbtetClient {
 
         result.put("dailyRecords", table1Node);
         result.put("monthLookup", table2Node);
+        result.put("rawResponse", rootNode.toString());
         return result;
     }
 //
