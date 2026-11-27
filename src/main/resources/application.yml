@@ -5,7 +5,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:${DB_URL:jdbc:mysql://${DB_HOST:gateway01.ap-southeast-1.prod.aws.tidbcloud.com}:${DB_PORT:4000}/${DB_NAME:defaultdb}?sslMode=VERIFY_IDENTITY&enabledTLSProtocols=TLSv1.2,TLSv1.3&serverTimezone=UTC}}
     username: ${DB_USER:ggqtWGnBNrw2Ea9.root}
-    password: ${DB_PASSWORD }
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
